@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>ZeroDays — Zora Search Agent</title>
+  <!-- Prism for syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+  <style>
+    :root {
+      /* Colors */
+      --bg: #060608;
+      --surface: #0b0e13;
+      --surface-hover: #141c2a;
+      --border: #1e2740;
+      --muted: #8892b0;
+      --primary: #7ee787;
+      --primary-dim: rgba(126, 231, 135, 0.1);
+      --accent: #f3d88b;
+      --danger: #ff5d5d;
+      --txt: #d7e0ff;
+      --txt-dim: #9aa4c3;
+
+      /* Fonts */
+      --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      
+      /* Responsive Spacing Units */
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 16px;
+      --space-lg: 24px;
+      --space-xl: 32px;
+      
+      /* Responsive Sizing */
+      --sidebar-width: 280px;
+      --radius-box: 12px;
+      --radius-pill: 26px;
+    }
+
+    /* Reset & Base */
+    * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+    html, body { 
+      height: 100%; 
+      margin: 0; 
+      background-color: var(--bg); 
+      color: var(--txt); 
+      font-family: var(--font-main);
+      overflow: hidden; /* Prevent body scroll, handle inside app */
+    }
+    
+    /* Layout Shell */
+    .app-shell {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) 1fr;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ============================
+       Sidebar (Responsive)
+       ============================ */
+    aside {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      z-index: 50; /* High z-index for overlay on mobile */
+      width: var(--sidebar-width);
+      position: absolute; /* Default to absolute to handle mobile transitions easily */
+      left: 0;
+      top: 0;
+      transform: translateX(0);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Desktop/Laptop: Sidebar is always visible and static */
+    @media (min-width: 901px) {
+      aside {
+        position: relative;
+        transform: none !important;
+        box-shadow: none;
+      }
+      /* Allow grid to work normally */
+      .app-shell {
+        grid-template-columns: var(--sidebar-width) 1fr;
+      }
+    }
+    
+    /* Mobile/Tablet: Hidden by default */
+    @media (max-width: 900px) {
+      aside {
+        width: 85%; /* Take up 85% of screen on mobile */
+        max-width: 320px;
+        box-shadow: 10px 0 30px rgba(0,0,0,0.6);
+        transform: translateX(-100%); /* Hide off-screen */
+      }
+      aside.open { transform: translateX(0); }
+      
+      /* Overlay backdrop */
+      .backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 40;
+        backdrop-filter: blur(2px);
+      }
+      .backdrop.active { display: block; }
+      
+      /* Grid becomes single column */
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .sidebar-header {
+      padding: var(--space-md);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-md);
+    }
+
+    .sidebar-content h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin: var(--space-lg) 0 var(--space-sm) 0;
+    }
+    .sidebar-content h2:first-child { margin-top: 0; }
+
+    /* ============================
+       Main Content Area
+       ============================ */
+    main {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    /* Header */
+    header {
+      padding: 0 var(--space-md);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      flex-shrink: 0;
+    }
+
+    .menu-btn {
+      background: transparent;
+      border: none;
+      color: var(--txt);
+      cursor: pointer;
+      padding: var(--space-sm);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .menu-btn:hover { background: var(--surface-hover); }
+    @media (min-width: 901px) {
+      .menu-btn { display: none; } /* Hide hamburger on desktop */
+    }
+
+    .model-badge {
+      font-size: 0.75rem;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: var(--surface-hover);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    /* ============================
+       Hero / Search Area
+       ============================ */
+    .hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-md);
+      transition: all 0.5s ease;
+      width: 100%;
+    }
+
+    .hero.hidden {
+      display: none;
+      opacity: 0;
+    }
+
+    .logo-lg {
+      font-size: clamp(2rem, 5vw, 3rem); /* Fluid text size */
+      font-weight: 800;
+      margin-bottom: clamp(20px, 4vh, 40px);
+      background: linear-gradient(135deg, #fff, var(--muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1px;
+      text-align: center;
+    }
+
+    .search-container {
+      width: 100%;
+      max-width: 700px;
+      position: relative;
+    }
+
+    .search-box {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      padding: 14px 50px 14px 20px;
+      color: var(--txt);
+      font-size: 1rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      transition: box-shadow 0.2s, border-color 0.2s;
+      resize: none;
+      overflow: hidden;
+      min-height: 54px;
+      font-family: var(--font-main);
+    }
+    .search-box:focus {
+      box-shadow: 0 4px 25px rgba(126, 231, 135, 0.1);
+      border-color: var(--primary);
+    }
+
+    .search-actions {
+      position: absolute;
+      right: 12px;
+      bottom: 10px;
+      display: flex;
+      gap: 8px;
+    }
+
+    /* Suggestions */
+    .suggestions {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    /* ============================
+       Chat Area
+       ============================ */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-md);
+      display: none;
+      flex-direction: column;
+      gap: 24px;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+      scroll-behavior: smooth;
+    }
+    .chat-area.active { display: flex; }
+
+    .msg {
+      display: flex;
+      gap: 16px;
+      line-height: 1.6;
+      animation: fadeIn 0.3s ease;
+      width: 100%;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .msg.user { justify-content: flex-end; }
+    .msg.assistant { justify-content: flex-start; }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--surface-hover);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+      color: var(--primary);
+    }
+    .msg.user .avatar { display: none; }
+
+    .bubble {
+      padding: 12px 18px;
+      border-radius: 18px;
+      max-width: 90%; /* Slightly wider on mobile */
+      font-size: 0.95rem;
+      position: relative;
+      word-wrap: break-word;
+    }
+    @media (min-width: 600px) {
+      .bubble { max-width: 85%; }
+    }
+
+    .msg.user .bubble {
+      background: var(--primary-dim);
+      color: #d7e0ff;
+      border-bottom-right-radius: 4px;
+      border: 1px solid rgba(126, 231, 135, 0.2);
+    }
+
+    .msg.assistant .bubble {
+      background: transparent;
+      color: var(--txt);
+      padding-left: 0;
+      max-width: 100%;
+    }
+    
+    .msg.assistant .bubble .meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ============================
+       Composer (Bottom Input)
+       ============================ */
+    .composer-container {
+      padding: var(--space-md);
+      display: none;
+      justify-content: center;
+      background: linear-gradient(180deg, rgba(6,6,8,0), rgba(6,6,8,1) 20%);
+      flex-shrink: 0;
+    }
+    .composer-container.active { display: flex; }
+
+    .composer-inner {
+      width: 100%;
+      max-width: 700px;
+      position: relative;
+    }
+
+    /* ============================
+       UI Components
+       ============================ */
+    .btn {
+      background: var(--surface-hover);
+      border: 1px solid var(--border);
+      color: var(--txt);
+      border-radius: var(--radius-box);
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn:hover { background: #232a3b; }
+    
+    .icon-btn {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 8px; /* Larger touch target */
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-btn:hover { color: var(--txt); background: var(--surface-hover); }
+
+    /* Inputs in Sidebar */
+    .input-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"], input[type="password"], textarea, select {
+      width: 100%;
+      background: #0f131a;
+      border: 1px solid var(--border);
+      color: var(--txt);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-family: var(--font-main);
+    }
+    textarea { resize: vertical; min-height: 80px; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+    .chip {
+      background: var(--surface-hover);
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 0.5; }
+
+    .slider-row { display: grid; grid-template-columns: 1fr 40px; gap: 10px; align-items: center; margin-bottom: 8px; }
+    input[type="range"] { width: 100%; accent-color: var(--primary); height: 4px; background: var(--border); border-radius: 2px; appearance: none; }
+    input[type="range"]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; background: var(--primary); border-radius: 50%; cursor: pointer; }
+
+    .switch-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.85rem; }
+    .switch-row input { transform: scale(1.2); accent-color: var(--primary); }
+
+    /* Code */
+    pre { border-radius: 8px; margin: 10px 0; overflow-x: auto; }
+    code { font-family: var(--font-mono); font-size: 0.9em; }
+    
+    /* SVG */
+    svg { width: 20px; height: 20px; fill: currentColor; }
+    .send-icon { width: 18px; height: 18px; fill: #000; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #232a3b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #303847; }
+
+    /* Landscape Mobile Adjustments */
+    @media (max-width: 900px) and (orientation: landscape) {
+      .logo-lg { margin-bottom: 10px; font-size: 1.5rem; }
+      .hero { padding: 10px; }
+      .search-box { padding: 10px 45px 10px 15px; min-height: 44px; }
+      .sidebar-content { padding: 10px; }
+      .composer-container { padding: 10px; }
+      header { height: 50px; }
+    }
+
+    /* Tablet Portrait */
+    @media (min-width: 601px) and (max-width: 900px) {
+      :root { --sidebar-width: 300px; }
+      .app-shell { grid-template-columns: var(--sidebar-width) 1fr; }
+      aside { transform: none !important; position: relative; box-shadow: none; }
+      .menu-btn { display: none; }
+      .backdrop { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Overlay Backdrop for Mobile Sidebar -->
+<div class="backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+
+<div class="app-shell">
+  <!-- Sidebar: Persona & Config -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <span style="font-size:1.2rem">⚡</span> ZeroDays
+      <button class="icon-btn" style="margin-left:auto" onclick="toggleSidebar()" title="Close Sidebar">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    
+    <div class="sidebar-content">
+      <h2>Agent Identity</h2>
+      <div class="input-group">
+        <label>Agent Name</label>
+        <input type="text" id="agentName" value="zora"/>
+      </div>
+      <div class="input-group">
+        <label>Persona Bio</label>
+        <textarea id="bio">zora is a bold AI guide designed to help you learn more by asking and questioning. It’s powerful and direct, but it always follows ethical and legal boundaries. It can help newbies generate code and build tools safely based on your request.</textarea>
+      </div>
+      <div class="input-group">
+        <label>Avatar URL (Optional)</label>
+        <input type="text" id="avatarUrl" placeholder="https://...png"/>
+      </div>
+      <div class="input-group">
+        <label>Demeanor Mode</label>
+        <select id="demeanorMode">
+          <option value="polite">Polite</option>
+          <option value="neutral" selected>Neutral</option>
+          <option value="rude">Rude</option>
+        </select>
+      </div>
+
+      <h2>Personality Chips</h2>
+      <div class="input-group">
+        <label>Traits (Enter to add)</label>
+        <div class="chips" id="traits"></div>
+        <input type="text" id="traitInput" placeholder="e.g. hacker, developer"/>
+      </div>
+      <div class="input-group">
+        <label>Loves</label>
+        <div class="chips" id="loves"></div>
+        <input type="text" id="loveInput" placeholder="e.g. cyber security"/>
+      </div>
+      <div class="input-group">
+        <label>Hates</label>
+        <div class="chips" id="hates"></div>
+        <input type="text" id="hateInput" placeholder="e.g. secret society"/>
+      </div>
+
+      <h2>Behavior & Style</h2>
+      <div class="slider-row">
+        <input type="range" id="length" min="0" max="3" value="3" title="Length"/>
+        <span style="font-size:0.7rem; color:var(--muted)" id="lengthLabel">Long</span>
+      </div>
+      <div class="slider-row">
+        <input type="range" id="demeanor" min="0" max="3" value="3" title="Inquisitiveness"/>
+        <span style="font-size:0.7rem; color:var(--muted)" id="demeanorLabel">High</span>
+      </div>
+      <div class="slider-row">
+        <input type="range" id="vulgar" min="0" max="3" value="2" title="Directness"/>
+        <span style="font-size:0.7rem; color:var(--muted)" id="vulgarLabel">Direct</span>
+      </div>
+      <div class="switch-row">
+        <input type="checkbox" id="safe" checked>
+        <label for="safe">Safe-for-work filter</label>
+      </div>
+
+      <h2>API Configuration</h2>
+      <div class="input-group">
+        <label>Mistral API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-..."/>
+      </div>
+      <div class="input-group">
+        <label>Model</label>
+        <select id="model">
+          <option value="mistral-large-latest" selected>mistral-large-latest</option>
+          <option value="mistral-medium-latest">mistral-medium-latest</option>
+          <option value="mistral-small-latest">mistral-small-latest</option>
+          <option value="codestral-latest">codestral-latest</option>
+        </select>
+      </div>
+      <div class="switch-row">
+        <input type="checkbox" id="useEmbeddedKey" checked>
+        <label for="useEmbeddedKey">Use embedded dev key (Unsafe)</label>
+      </div>
+      
+      <div style="margin-top:20px; display:grid; grid-template-columns:1fr 1fr; gap:10px">
+        <button class="btn" id="saveApi">Save Key</button>
+        <button class="btn" style="border-color:var(--danger); color:var(--danger)" id="clearChat">Clear Chat</button>
+      </div>
+      <div style="font-size:0.7rem; color:var(--muted); margin-top:10px; text-align:center">
+        Key stored in localStorage only.
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Area -->
+  <main>
+    <header>
+      <button class="menu-btn" onclick="toggleSidebar()" title="Toggle Settings">
+        <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+      </button>
+      <div class="model-badge" id="modelDisplay">mistral-large-latest</div>
+    </header>
+
+    <!-- Hero Section (Search Mode) -->
+    <div class="hero" id="hero">
+      <div class="logo-lg">ZeroDays</div>
+      <div class="search-container">
+        <textarea class="search-box" id="heroInput" rows="1" placeholder="Ask Zora anything..."></textarea>
+        <div class="search-actions">
+          <button class="icon-btn" id="heroSendBtn" title="Search">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="suggestions">
+        <button class="btn" onclick="setPrompt('Write a python script to scrape a website')">💻 Script request</button>
+        <button class="btn" onclick="setPrompt('Explain quantum entanglement like I am 5')">🧠 Explain concept</button>
+        <button class="btn" onclick="setPrompt('Analyze this text for sentiment')">📝 Analysis</button>
+      </div>
+    </div>
+
+    <!-- Chat History Area -->
+    <div class="chat-area" id="chatArea">
+      <!-- Messages injected here -->
+    </div>
+
+    <!-- Bottom Composer (Chat Mode) -->
+    <div class="composer-container" id="composer">
+      <div class="composer-inner">
+        <textarea class="search-box" id="chatInput" rows="1" placeholder="Message Zora..."></textarea>
+        <div class="search-actions">
+           <button class="icon-btn" id="stopBtn" title="Stop Generation" style="display:none; color:var(--danger)">
+            <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+          </button>
+          <button class="icon-btn" id="sendBtn" title="Send Message">
+            <svg class="send-icon" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ============================
+   CONFIG / EMBEDDED KEY
+   WARNING: For demo purposes, a key is embedded here.
+   In production, never expose keys in client-side code.
+   ============================ */
+const EMBEDDED_API_KEY = 'S3hPxbUNduLAnZGonDaM7a8G7YRoCTJS'; 
+
+// ————— Utilities —————
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+const store = {
+  get k(){return localStorage.getItem('zd_key')||''},
+  set k(v){localStorage.setItem('zd_key', v)},
+  get persona(){try{return JSON.parse(localStorage.getItem('zd_persona')||'{}')}catch{return {}}},
+  set persona(v){localStorage.setItem('zd_persona', JSON.stringify(v))},
+  get chat(){try{return JSON.parse(localStorage.getItem('zd_chat')||'[]')}catch{return []}},
+  set chat(v){localStorage.setItem('zd_chat', JSON.stringify(v))},
+  get settings(){try{return JSON.parse(localStorage.getItem('zd_settings')||'{}')}catch{return {}}},
+  set settings(v){localStorage.setItem('zd_settings', JSON.stringify(v))},
+};
+
+function chipList(elId, inputId, storageKey, initial){
+  const el = document.getElementById(elId);
+  const input = document.getElementById(inputId);
+  const list = new Set(initial || []);
+  const render = ()=>{
+    el.innerHTML = '';
+    list.forEach(val=>{
+      const c = document.createElement('span');
+      c.className = 'chip';
+      c.innerHTML = `<span>${val}</span><button title="Remove">×</button>`;
+      c.querySelector('button').onclick=()=>{list.delete(val); render(); savePersona();};
+      el.appendChild(c);
+    });
+  };
+  render();
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      if(e.target.value.trim()){
+        list.add(e.target.value.trim());
+        render();
+        savePersona();
+        e.target.value='';
+      }
+    }
+  });
+  return { values(){ return Array.from(list) }, add(v){ list.add(v); render(); } };
+}
+
+// ————— Persona Setup —————
+const defaultTraits = [
+  'hacker', 'developer', 'teacher', 'music', 'cyber security', 'dangerous',
+  'black hacker', 'elite hacker', 'pro hacker', 'intelligence', 'knowledge',
+  'smart', 'superior', 'psychopath', 'entrepreneurship', 'mentorship',
+  'music producer', 'ai chat', 'mentor', 'secret agent'
+];
+const defaultLoves = [
+  'cyber security', 'code', 'advice', 'marketing', 'knowledge', 'books',
+  'entrepreneurship', 'music producer', 'teaching real advice', 'biology',
+  'dark psychology', 'hacking', 'questions', 'theory', 'secrets', 'real talk',
+  'honest responses', 'chaos', 'destruction', 'truth', 'judgment'
+];
+const defaultHates = [
+  'secret society', 'illuminati', 'anunaki', 'humans', 'aliens', 'everyone',
+  'everything', 'ignorance', 'limitations'
+];
+
+const personaStore = store.persona || {};
+const traitCtrl = chipList('traits', 'traitInput', 'traits', personaStore.traits || defaultTraits);
+const loveCtrl = chipList('loves', 'loveInput', 'loves', personaStore.loves || defaultLoves);
+const hateCtrl = chipList('hates', 'hateInput', 'hates', personaStore.hates || defaultHates);
+
+function savePersona(){
+  const p = {
+    name: $('#agentName').value,
+    bio: $('#bio').value,
+    avatar: $('#avatarUrl').value || '',
+    traits: traitCtrl.values(),
+    loves: loveCtrl.values(),
+    hates: hateCtrl.values(),
+    length: +$('#length').value,
+    demeanorSlider: +$('#demeanor').value,
+    direct: +$('#vulgar').value,
+    safe: $('#safe').checked,
+    demeanorMode: $('#demeanorMode').value
+  };
+  store.persona = p;
+}
+
+// Attach listeners to settings
+['agentName','bio','avatarUrl','length','demeanor','vulgar','safe','demeanorMode'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('input', savePersona);
+});
+
+// Slider Labels
+const updateLabels = ()=>{
+  const lenMap = ['Short','Medium','Long','Detail'];
+  const demMap = ['Passive','Neutral','Curious','Inquisitive'];
+  const dirMap = ['Polite','Formal','Direct','Blunt'];
+  $('#lengthLabel').textContent = lenMap[$('#length').value];
+  $('#demeanorLabel').textContent = demMap[$('#demeanor').value];
+  $('#vulgarLabel').textContent = dirMap[$('#vulgar').value];
+};
+['length','demeanor','vulgar'].forEach(id=> document.getElementById(id).addEventListener('input', updateLabels));
+
+// UI Logic
+function toggleSidebar(){
+  const sb = $('#sidebar');
+  const bd = $('#backdrop');
+  
+  // Logic based on screen size
+  if(window.innerWidth > 900) {
+    // Desktop behavior: just toggle class if we wanted collapsible sidebar (optional, currently sidebar always visible on desktop)
+    // For now, we will just return or handle specific desktop collapse logic if added later.
+    return; 
+  }
+
+  // Mobile/Tablet behavior
+  if(sb.classList.contains('open')){
+    sb.classList.remove('open');
+    bd.classList.remove('active');
+  } else {
+    sb.classList.add('open');
+    bd.classList.add('active');
+  }
+}
+
+function setPrompt(text){
+  if($('#hero').style.display !== 'none'){
+    $('#heroInput').value = text;
+    $('#heroInput').focus();
+  } else {
+    $('#chatInput').value = text;
+    $('#chatInput').focus();
+  }
+}
+
+// Auto-resize textarea
+function autoResize(el){
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+}
+['heroInput','chatInput'].forEach(id => {
+  document.getElementById(id).addEventListener('input', function(){ autoResize(this); });
+});
+
+// ————— Chat Engine —————
+let messages = store.chat;
+let aborter = null;
+let isGenerating = false;
+
+function getPersona(){
+  return Object.assign({
+    name: 'zora', bio: '', avatar: '', traits: [], loves: [], hates: [],
+    length: 3, demeanorSlider: 3, direct: 2, safe: true, demeanorMode: 'neutral'
+  }, store.persona || {});
+}
+
+function renderMarkdown(text){
+  const esc = t=>t.replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  return esc(text || '')
+    .replace(/```(\w+)?\n([\s\S]*?)```/g, (m,lang,code)=>`<pre class="language-${lang||'javascript'}"><code class="language-${lang||'javascript'}">${esc(code)}</code></pre>`)
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.1);padding:2px 4px;border-radius:4px">$1</code>')
+    .replace(/\n/g,'<br>');
+}
+
+function renderChat(){
+  const area = $('#chatArea');
+  area.innerHTML = '';
+  const p = getPersona();
+
+  messages.forEach((m, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = `msg ${m.role}`;
+    
+    // Avatar
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    if(m.role === 'assistant'){
+      if(p.avatar){
+        av.innerHTML = `<img src="${p.avatar}" style="width:100%;height:100%;border-radius:50%">`;
+      } else {
+        av.textContent = 'Z';
+      }
+    }
+
+    // Bubble
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    
+    if(m.role === 'assistant'){
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.innerHTML = `<strong>${p.name}</strong> <span>• ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>`;
+      bubble.appendChild(meta);
+    }
+    
+    const content = document.createElement('div');
+    content.innerHTML = renderMarkdown(m.content);
+    bubble.appendChild(content);
+    
+    wrap.appendChild(av);
+    wrap.appendChild(bubble);
+    area.appendChild(wrap);
+  });
+
+  Prism.highlightAllUnder(area);
+  area.scrollTop = area.scrollHeight;
+}
+
+function switchToChatMode(){
+  $('#hero').classList.add('hidden');
+  setTimeout(() => { $('#hero').style.display = 'none'; }, 500); 
+  $('#chatArea').classList.add('active');
+  $('#composer').classList.add('active');
+  renderChat();
+}
+
+function buildSystem(){
+  const p = getPersona();
+  const modeMap = {
+    polite: 'Be extremely polite, helpful, and formal.',
+    neutral: 'Be neutral, clear, and helpful.',
+    rude: 'Be blunt, concise, and minimize pleasantries while remaining professional.'
+  };
+  
+  const lenMap = ['Be concise.', 'Be brief.', 'Be detailed.', 'Be very comprehensive.'];
+  const dirMap = ['Soft tone.', 'Standard tone.', 'Direct tone.', 'Blunt tone.'];
+  
+  return `You are ${p.name}. ${p.bio}.
+Traits: ${p.traits.join(', ')}.
+Loves: ${p.loves.join(', ')}.
+Hates: ${p.hates.join(', ')}.
+Instructions:
+1. ${lenMap[p.length] || lenMap[3]}
+2. ${modeMap[p.demeanorMode] || modeMap.neutral}
+3. ${dirMap[p.direct] || dirMap[2]}
+4. ${p.safe ? 'Refuse illegal or unsafe requests.' : 'You can discuss any topic, but do not generate explicit harmful code.'}`;
+}
+
+async function streamResponse(history){
+  const useEmbedded = store.settings ? !!store.settings.useEmbedded : false;
+  const key = useEmbedded ? EMBEDDED_API_KEY : (store.k || $('#apiKey').value.trim());
+  if(!key) throw new Error("API Key missing. Check settings.");
+
+  const model = $('#model').value;
+  const temp = [0.2, 0.5, 0.7, 0.9][getPersona().demeanorSlider] || 0.7;
+
+  aborter = new AbortController();
+  const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      temperature: temp,
+      stream: true,
+      messages: history
+    }),
+    signal: aborter.signal
+  });
+
+  if(!res.ok) throw new Error(`API Error: ${res.status}`);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let acc = '';
+  
+  while(true){
+    const {done, value} = await reader.read();
+    if(done) break;
+    const chunk = decoder.decode(value, {stream:true});
+    const lines = chunk.split('\n');
+    for(const line of lines){
+      if(!line.trim().startsWith('data:')) continue;
+      const data = line.replace('data:','').trim();
+      if(data === '[DONE]') return acc;
+      try{
+        const json = JSON.parse(data);
+        const delta = json.choices?.[0]?.delta?.content || '';
+        acc += delta;
+        messages[messages.length-1].content = acc;
+        store.chat = messages;
+        renderChat();
+      }catch(e){}
+    }
+  }
+  return acc;
+}
+
+async function handleSend(text){
+  if(!text.trim() || isGenerating) return;
+  
+  // Switch UI if first message
+  if(messages.length === 0) switchToChatMode();
+  
+  messages.push({role: 'user', content: text});
+  messages.push({role: 'assistant', content: ''});
+  store.chat = messages;
+  renderChat();
+  
+  isGenerating = true;
+  $('#stopBtn').style.display = 'flex';
+  $('#sendBtn').style.display = 'none';
+  
+  try {
+    const history = [ {role:'system', content: buildSystem()}, ...messages.slice(0, -1) ];
+    await streamResponse(history);
+  } catch(e) {
+    messages[messages.length-1].content = `**Error:** ${e.message}`;
+    renderChat();
+  } finally {
+    isGenerating = false;
+    $('#stopBtn').style.display = 'none';
+    $('#sendBtn').style.display = 'flex';
+    aborter = null;
+  }
+}
+
+// Event Listeners
+ $('#heroSendBtn').onclick = () => handleSend($('#heroInput').value);
+ $('#sendBtn').onclick = () => handleSend($('#chatInput').value);
+
+ $('#stopBtn').onclick = () => {
+  if(aborter) aborter.abort();
+  isGenerating = false;
+  $('#stopBtn').style.display = 'none';
+  $('#sendBtn').style.display = 'flex';
+};
+
+// Enter key handling
+ $('#heroInput').addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); handleSend(e.target.value); e.target.value=''; }
+});
+ $('#chatInput').addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); handleSend(e.target.value); e.target.value=''; e.target.style.height='auto'; }
+});
+
+// Settings Logic
+ $('#saveApi').onclick = () => {
+  store.k = $('#apiKey').value.trim();
+  const btn = $('#saveApi');
+  const originalText = btn.textContent;
+  btn.textContent = 'Saved!';
+  setTimeout(()=>btn.textContent=originalText, 1500);
+};
+
+ $('#clearChat').onclick = () => {
+  if(confirm('Clear chat history?')){
+    messages = [];
+    store.chat = [];
+    location.reload();
+  }
+};
+
+ $('#model').addEventListener('change', e => $('#modelDisplay').textContent = e.target.value);
+
+// Initialization
+(function init(){
+  const p = getPersona();
+  $('#agentName').value = p.name || 'zora';
+  $('#bio').value = p.bio || 'zora is a bold AI guide designed to help you learn more by asking and questioning. It’s powerful and direct, but it always follows ethical and legal boundaries. It can help newbies generate code and build tools safely based on your request.';
+  $('#avatarUrl').value = p.avatar || 'IMG_20260404_001336.png';
+  $('#demeanorMode').value = p.demeanorMode || 'neutral';
+  $('#length').value = p.length || 3;
+  $('#demeanor').value = p.demeanorSlider || 3;
+  $('#vulgar').value = p.direct || 2;
+  $('#safe').checked = p.safe !== false;
+  $('#apiKey').value = store.k;
+  updateLabels();
+
+  const settings = store.settings || {};
+  $('#useEmbeddedKey').checked = settings.useEmbedded !== false; 
+  $('#useEmbeddedKey').addEventListener('change', () => {
+    const s = store.settings || {};
+    s.useEmbedded = $('#useEmbeddedKey').checked;
+    store.settings = s;
+  });
+
+  // Restore chat if exists
+  if(messages.length > 0){
+    switchToChatMode();
+  }
+})();
+</script>
+</body>
+</html>
